@@ -31,5 +31,19 @@ Connection Count: 300
 Connection Count: 400
 ```
 
+# Help
+
+```
+usage: pysmbtorture.py [-h] [-d D] --server SERVER --share SHARE [--cleanup]
+                       [-t T]
+
+optional arguments:
+  -h, --help       show this help message and exit
+  --server SERVER  server
+  --share SHARE    share
+  --cleanup        clean up files and folders after the run
+  -t T             number of threads
+```
+
   
 
