@@ -1,88 +1,78 @@
 
 import time
-from multiprocessing.pool import ThreadPool
-import subprocess
+import asyncio
+import os
+from random import randint
+
+async def cmd(p, c, sleep=0):
+    if p.returncode:
+        out = await p.stdout.read()
+        out = out.decode('utf-8')
+        print(out)
+    p.stdin.write(c.encode('utf-8'))
+    await asyncio.sleep(sleep)
+    
 
 
-def test1(args, number):
+async def test1(args, number, counter, semaphore):
 
     start = time.time()
 
-    cmd = f"smbclient \\\\{args.server}\\{args.share} -k -m SMB2"
+    smb_cmd = f"smbclient \\\\\\\\{args.server}\\\\{args.share} -k -m SMB2"
     
-    p = subprocess.Popen(cmd.split(" "), stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE, 
-                                         universal_newlines=True)
-    #p = subprocess.Popen(cmd.split(" "), stdin=subprocess.PIPE,
-    #                                     universal_newlines=True)
+    # only 20 starting at a time.
+    await semaphore.acquire()
+    p = await asyncio.create_subprocess_shell(smb_cmd, 
+                                stdin=asyncio.subprocess.PIPE,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE)
+    semaphore.release()
+    
+    await asyncio.sleep(1)
 
+    await cmd(p, f'mkdir python_t3_{number}\n')
 
-    p.stdin.write(f'mkdir python_t3_{number}\n')
-    p.stdin.flush()
+    counter[0] += 1
+    if counter[0] % 100 == 0:
+        print(f"Connection Count: {counter[0]}")
+    
+    # We are going to wait here until all threads get to this point.
+    while counter[0] < args.t:
+        await asyncio.sleep(0.5)
+
+    # Random sleep, so threads are working on different things at different times
+    await asyncio.sleep(randint(0,5))
 
     for x in range(20):
-        p.stdin.write(f'l python_t3_{number}\\r.bin \n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'put random.bin python_t3_{number}\\r.bin\n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'get python_t3_{number}\\r.bin  r-{number}.bin\n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'l python_t3_{number}\\r.bin \n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'mkdir python_t3_{number}\\1 \n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'mkdir python_t3_{number}\\2 \n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'rmdir python_t3_{number}\\1 \n')
-        p.stdin.flush()
-        time.sleep(1)
-
-        p.stdin.write(f'rmdir python_t3_{number}\\2 \n')
-        p.stdin.flush()
-        time.sleep(1)
+        
+        await cmd(p, f'put random.bin python_t3_{number}\\r.bin\n', 0.5)
+        
+        await cmd(p, f'get python_t3_{number}\\r.bin  r-{number}.bin\n', 0.5)
+        await cmd(p, f'l python_t3_{number}\\r.bin \n', 0.5)
+        await cmd(p, f'mkdir python_t3_{number}\\1 \n', 0.5)
+        await cmd(p, f'mkdir python_t3_{number}\\2 \n', 0.5)
+        await cmd(p, f'rmdir python_t3_{number}\\1 \n', 0.5)
+        await cmd(p, f'rmdir python_t3_{number}\\2 \n', 0.5)
     
     if args.cleanup:
-        p.stdin.write(f'del python_t3_{number}\\r.bin \n')
-        p.stdin.flush()
-
-        p.stdin.write(f'rmdir python_t3_{number}\n')
-        p.stdin.flush()
-
-    
-    p.stdin.write(f'quit\n')
-    p.stdin.flush()
+        await cmd(p, f'del python_t3_{number}\\r.bin \n')
+        await cmd(p, f'rmdir python_t3_{number}\n')
+        os.remove(f'r-{number}.bin')
 
 
-def main(args):
+async def main(args):
 
     # Create amultiprocessing pool
-    pool = ThreadPool(processes=args.t)
-    futures = []
+    counter = [0]
+    tasks = []
 
+    semaphore = asyncio.Semaphore(40)
     for i in range(args.t):
-        futures.append(pool.apply_async(test1, args=(args, i, )))
-        time.sleep(0.001)
+        tasks.append(test1(args, i, counter, semaphore))
 
-    pool.close()
-    pool.join()
+    results = await asyncio.gather(*tasks)
+    print(results)
 
-    for f in futures:
-        result = f.get()
-        #print(result)
-    
 
 
 if __name__ == "__main__":
@@ -98,5 +88,7 @@ if __name__ == "__main__":
                         help="clean up files and folders after the run")
     parser.add_argument('--delay', type=int, default=10,
                         help="clean up files and folders after the run")            
-    parser.add_argument('-t', type=int, help="number of threads", default=1000)
-    main(parser.parse_args())
+    parser.add_argument('-t', type=int, help="number of threads", default=5)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(parser.parse_args()))
