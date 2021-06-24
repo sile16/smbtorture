@@ -4,7 +4,7 @@ A tool to create many SMB Client connections and simulate a workload.  It uses a
 
 # Pre-reqs:
 ```
-yum install samaba-client
+yum install samba-client
 ```
 
 if not already part of an AD Domain:
