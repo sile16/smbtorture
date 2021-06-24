@@ -4,6 +4,8 @@ import asyncio
 import os
 from random import randint
 
+
+# Send a command to smbclient, with an optional wait
 async def cmd(p, c, sleep=0):
     if p.returncode:
         out = await p.stdout.read()
@@ -19,8 +21,7 @@ async def test1(args, number, counter, semaphore):
     start = time.time()
 
     smb_cmd = f"smbclient \\\\\\\\{args.server}\\\\{args.share} -k -m SMB2"
-    
-    # only 20 starting at a time.
+
     await semaphore.acquire()
     p = await asyncio.create_subprocess_shell(smb_cmd, 
                                 stdin=asyncio.subprocess.PIPE,
@@ -41,7 +42,7 @@ async def test1(args, number, counter, semaphore):
         await asyncio.sleep(0.5)
 
     # Random sleep, so threads are working on different things at different times
-    await asyncio.sleep(randint(0,5))
+    await asyncio.sleep(randint(0, 10))
 
     for x in range(20):
         
@@ -66,7 +67,9 @@ async def main(args):
     counter = [0]
     tasks = []
 
+    # only start so many processes at a time because of OS issues
     semaphore = asyncio.Semaphore(80)
+
     for i in range(args.t):
         tasks.append(test1(args, i, counter, semaphore))
 
@@ -85,9 +88,7 @@ if __name__ == "__main__":
     parser.add_argument('--share', type=str, required=True,
                         help="share")
     parser.add_argument('--cleanup', action="store_true",
-                        help="clean up files and folders after the run")
-    parser.add_argument('--delay', type=int, default=10,
-                        help="clean up files and folders after the run")            
+                        help="clean up files and folders after the run")          
     parser.add_argument('-t', type=int, help="number of threads", default=5)
 
     loop = asyncio.get_event_loop()
