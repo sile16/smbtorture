@@ -66,7 +66,7 @@ async def main(args):
     counter = [0]
     tasks = []
 
-    semaphore = asyncio.Semaphore(40)
+    semaphore = asyncio.Semaphore(80)
     for i in range(args.t):
         tasks.append(test1(args, i, counter, semaphore))
 
