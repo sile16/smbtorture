@@ -7,6 +7,8 @@ from random import randint
 
 # Send a command to smbclient, with an optional wait
 async def cmd(p, c, sleep=0):
+    # if there is a return code it means the processes exited and something went wrong
+    # 
     if p.returncode:
         out = await p.stdout.read()
         out = out.decode('utf-8')
@@ -20,8 +22,11 @@ async def test1(args, number, counter, semaphore):
 
     start = time.time()
 
+    # the command is evaluated twice,  so we have to escape our back slashes twice..
     smb_cmd = f"smbclient \\\\\\\\{args.server}\\\\{args.share} -k -m SMB2"
-
+    
+    
+    # the semaphore prevents us from spawning too many processes too quickly which causes os issues.
     await semaphore.acquire()
     p = await asyncio.create_subprocess_shell(smb_cmd, 
                                 stdin=asyncio.subprocess.PIPE,
@@ -44,6 +49,7 @@ async def test1(args, number, counter, semaphore):
     # Random sleep, so threads are working on different things at different times
     await asyncio.sleep(randint(0, 10))
 
+    # todo make the number of rounds configurable, or better just make it a duration
     for x in range(20):
         
         await cmd(p, f'put random.bin python_t3_{number}\\r.bin\n', 0.5)
@@ -59,21 +65,28 @@ async def test1(args, number, counter, semaphore):
         await cmd(p, f'del python_t3_{number}\\r.bin \n')
         await cmd(p, f'rmdir python_t3_{number}\n')
         os.remove(f'r-{number}.bin')
+    
+    await cmd(p, f'quit\n')
+     
 
 
 async def main(args):
 
-    # Create amultiprocessing pool
+    # counter is an object so it can be passed by reference.
+    # this is asyncio so no races conditions to worry about.
     counter = [0]
-    tasks = []
+    
 
     # only start so many processes at a time because of OS issues
     semaphore = asyncio.Semaphore(80)
-
+    
+    tasks = []
     for i in range(args.t):
         tasks.append(test1(args, i, counter, semaphore))
 
     results = await asyncio.gather(*tasks)
+    
+    # Todo return some stats and aggregate them.
     print(results)
 
 
@@ -91,5 +104,8 @@ if __name__ == "__main__":
                         help="clean up files and folders after the run")          
     parser.add_argument('-t', type=int, help="number of threads", default=5)
 
+    # start our async loop and run the main function.
+    # This is Python 3.6 so can't use asyncio.run
+    
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(parser.parse_args()))
