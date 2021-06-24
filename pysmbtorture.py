@@ -18,7 +18,7 @@ async def cmd(p, c, sleep=0):
 
 async def test1(args, number, counter, semaphore):
 
-    start = time.time()
+    
 
     smb_cmd = f"smbclient \\\\\\\\{args.server}\\\\{args.share} -k -m SMB2"
 
@@ -41,10 +41,13 @@ async def test1(args, number, counter, semaphore):
     while counter[0] < args.t:
         await asyncio.sleep(0.5)
 
+
+    t_end = time.time() + args.duration
+
     # Random sleep, so threads are working on different things at different times
     await asyncio.sleep(randint(0, 10))
 
-    for x in range(20):
+    while time.time() < t_end:
         
         await cmd(p, f'put random.bin python_t3_{number}\\r.bin\n', 0.5)
         
@@ -81,7 +84,7 @@ async def main(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', type=int, default=1,
+    parser.add_argument('--duration', type=int, default=60,
                         help="duration in seconds")
     parser.add_argument('--server', type=str, required=True,
                         help="server")

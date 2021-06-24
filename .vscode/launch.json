@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "args": ["--server", "dfwlab-data-1.dfwlab.purestorage.com", "--share", "mr-smb1"],
+            "args": ["--server", "dfwlab-data-1.dfwlab.purestorage.com", "--share", "mr-smb1", "--cleanup"],
             "console": "integratedTerminal"
         }
     ]
